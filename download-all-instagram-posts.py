@@ -7,12 +7,14 @@ from datetime import datetime
 import urllib.request
 from instagram_private_api import Client, ClientCookieExpiredError, ClientLoginRequiredError, ClientLoginError, \
     ClientError
+# Instagram API documentation: https://instagram-private-api.readthedocs.io/en/latest/usage.html
 import piexif
 
-from file_io import open_file, write_to_file
+from file_io import open_file
 
 LOGIN_FILE_PATH = "login_details.txt"
 SETTINGS_FILE_PATH = "settings.txt"
+POSTS_FILE_PATH = "posts.json"
 MAX_FILE_LENGTH = 180
 
 
@@ -45,7 +47,6 @@ def login():
     device_id = None
 
     try:
-
         settings_file = settings_file_path
         if not os.path.isfile(settings_file):
             # settings file does not exist
@@ -86,21 +87,33 @@ def login():
 def main():
     api = login()
 
-    user_info = api.username_info(input("Download all posts from which user? @"))
-    user_id = user_info['user']['pk']
+    username = input("Download all posts from which user? (Enter a . to load from posts.json file) @")
 
-    more_available_key = 'more_available'
-    next_max_id_key = 'next_max_id'
-    items_key = 'items'
+    if username == '.':
+        with open(POSTS_FILE_PATH, 'r') as fp:
+            posts = json.load(fp)
 
-    feed = api.user_feed(user_id)
-    posts = feed[items_key]
+    else:
+        user_info = api.username_info(username)
+        user_id = user_info['user']['pk']
 
-    while feed[more_available_key]:
-        print(f"Getting more posts ({len(posts)} so far)...")
-        max_id = feed[next_max_id_key]
-        feed = api.user_feed(user_id, max_id=max_id)
-        posts.extend(feed[items_key])
+        more_available_key = 'more_available'
+        next_max_id_key = 'next_max_id'
+        items_key = 'items'
+
+        feed = api.user_feed(user_id)
+        posts = feed[items_key]
+
+        while feed[more_available_key]:
+            print(f"Getting more posts ({len(posts)} so far)...")
+            max_id = feed[next_max_id_key]
+            feed = api.user_feed(user_id, max_id=max_id)
+            posts.extend(feed[items_key])
+
+        print(f"Number of posts: {len(posts)}")
+
+        with open(POSTS_FILE_PATH, 'w') as fp:
+            json.dump(posts, fp, indent=2)
 
     title_key = 'title'
     caption_key = 'caption'
@@ -110,10 +123,6 @@ def main():
     image_versions_key = 'image_versions2'
     candidates_key = 'candidates'
     url_key = 'url'
-
-    print(f"Number of posts: {len(posts)}")
-
-    write_to_file('posts.json', str(posts))
 
     for i, post in enumerate(posts):
         if title_key in post:
