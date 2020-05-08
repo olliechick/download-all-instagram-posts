@@ -231,3 +231,11 @@ venv/
 ENV/
 env.bak/
 venv.bak/
+
+# App-specific
+
+login_details.txt
+settings.txt
+output/*
+!output/.gitkeep
+posts.json
