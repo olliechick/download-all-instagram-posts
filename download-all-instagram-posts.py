@@ -86,13 +86,8 @@ def login():
 def main():
     api = login()
 
-    # get from https://codeofaninja.com/tools/find-instagram-user-id
-    user_id = 979865360  # @edgeafternoons
-    # user_id = 31469633951  # @thehitsbreakfast
-    # user_id = 1636018662  # @ollienickchick
-
-    # username = input("Enter the username of the Instagram account: @")
-    # print(f"Downloading @{username}'s posts...")
+    user_info = api.username_info(input("Download all posts from which user? @"))
+    user_id = user_info['user']['pk']
 
     more_available_key = 'more_available'
     next_max_id_key = 'next_max_id'
@@ -100,8 +95,7 @@ def main():
 
     feed = api.user_feed(user_id)
     posts = feed[items_key]
-    
-    
+
     while feed[more_available_key]:
         print(f"Getting more posts ({len(posts)} so far)...")
         max_id = feed[next_max_id_key]
