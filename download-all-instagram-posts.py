@@ -15,7 +15,7 @@ from file_io import open_file
 LOGIN_FILE_PATH = "login_details.txt"
 SETTINGS_FILE_PATH = "settings.txt"
 POSTS_FILE_PATH = "posts.json"
-MAX_FILE_LENGTH = 180
+MAX_FILENAME_LENGTH = 190  # not including extension (e.g. ".jpg")
 
 
 def to_json(python_object):
@@ -45,6 +45,7 @@ def login():
     username = username.strip()
     password = password.strip()
     device_id = None
+    api = None
 
     try:
         settings_file = settings_file_path
@@ -82,6 +83,30 @@ def login():
         exit(99)
 
     return api
+
+
+def generate_filename(title, url, parent_directory, i=0):
+    """ Returns a filename, with as many characters from `title` as allowed and ending with the extension in `url`. """
+    invalid_chars = '<>:"/\\|?*'
+    post_filename = "".join([c for c in title if c not in invalid_chars]).strip()[:MAX_FILENAME_LENGTH]
+    post_filename = ' '.join(post_filename.split())
+    if i != 0:
+        post_filename = f"{post_filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
+    extension = url.split('?')[0].split('.')[-1]
+    return os.path.join(parent_directory, f"{post_filename}.{extension}")
+
+
+def set_date(filename, timestamp):
+    """ Sets date of file `filename` to the time in the POSIX timestamp `timestamp`. """
+    extension = filename.split('.')[-1]
+    if extension == "jpg":
+        exif_dict = piexif.load(filename)
+        time = datetime.fromtimestamp(timestamp)
+        exif_dict['Exif'] = {piexif.ExifIFD.DateTimeOriginal: time.strftime("%Y:%m:%d %H:%M:%S")}
+        exif_bytes = piexif.dump(exif_dict)
+        piexif.insert(exif_bytes, filename)
+    elif extension == "mp4" or extension == "jpg":
+        os.utime(filename, (timestamp, timestamp))
 
 
 def main():
@@ -123,8 +148,16 @@ def main():
     image_versions_key = 'image_versions2'
     candidates_key = 'candidates'
     url_key = 'url'
+    carousel_media_key = 'carousel_media'
 
+    print(f"Downloading files...")
     for i, post in enumerate(posts):
+        # Get time data
+        timestamp = post[taken_at_key]
+        time_string = datetime.fromtimestamp(timestamp).strftime('%Y_%m_%d %I.%M%p').replace('_', '-')
+        time_string = time_string.replace("AM", "am").replace("PM", "pm").replace(" 0", " ")
+
+        # Get title of post
         if title_key in post:
             title = post[title_key]
         elif caption_key in post and post[caption_key] is None:
@@ -132,39 +165,48 @@ def main():
         elif caption_key in post and text_key in post[caption_key]:
             title = post[caption_key][text_key]
         else:
+            print(f"{i}: Error with title (taken at {time_string})")
             title = "ERROR"
 
-        if video_versions_key in post and url_key in post[video_versions_key][0]:
-            url = post[video_versions_key][0][url_key]
-        elif image_versions_key in post and candidates_key in post[image_versions_key] and \
-                url_key in post[image_versions_key][candidates_key][0]:
-            url = post[image_versions_key][candidates_key][0][url_key]
+        if (i + 1) % 20 == 0:
+            print(f"Downloading file {i + 1}...")
+
+        # Get photos/videos if in carousel
+        if carousel_media_key in post:
+            for j, item in enumerate(post[carousel_media_key]):
+                if video_versions_key in item and url_key in item[video_versions_key][0]:
+                    url = item[video_versions_key][0][url_key]
+                elif image_versions_key in item and candidates_key in item[image_versions_key] and \
+                        url_key in item[image_versions_key][candidates_key][0]:
+                    url = item[image_versions_key][candidates_key][0][url_key]
+                else:
+                    print(f"{i}: Error with url for {title}, taken at {time_string}")
+                    url = "ERROR"
+
+                try:
+                    post_filename = generate_filename(title, url, username, j+1)
+                    urllib.request.urlretrieve(url, post_filename)
+                    set_date(post_filename, timestamp)
+                except Exception as e:
+                    print(e)
+
+        # Get photos/videos for non-carousel
         else:
-            url = "ERROR"
+            if video_versions_key in post and url_key in post[video_versions_key][0]:
+                url = post[video_versions_key][0][url_key]
+            elif image_versions_key in post and candidates_key in post[image_versions_key] and \
+                    url_key in post[image_versions_key][candidates_key][0]:
+                url = post[image_versions_key][candidates_key][0][url_key]
+            else:
+                print(f"{i}: Error with url for {title}, taken at {time_string}")
+                url = "ERROR"
 
-        time = datetime.fromtimestamp(post[taken_at_key])
-        time_string = time.strftime('%Y_%m_%d %I.%M%p').replace('_', '-')
-        time_string = time_string.replace("AM", "am").replace("PM", "pm").replace(" 0", " ")
-
-        # print(f"{i}: {title}, taken at {time}")
-
-        post_filename = "".join([c for c in title if c.isalpha() or c.isdigit() or c == ' ']).rstrip()[:MAX_FILE_LENGTH]
-        extension = url.split('?')[0].split('.')[-1]
-        post_filename = os.path.join("output", f"{time_string} {post_filename}.{extension}")
-
-        print(f"Downloading file {i + 1}...")
-        try:
-            urllib.request.urlretrieve(url, post_filename)
-
-            if extension == "jpg":
-                exif_dict = piexif.load(post_filename)
-                exif_dict['Exif'] = {piexif.ExifIFD.DateTimeOriginal: time.strftime("%Y:%m:%d %H:%M:%S")}
-                exif_bytes = piexif.dump(exif_dict)
-                piexif.insert(exif_bytes, post_filename)
-            elif extension == "mp4" or extension == "jpg":
-                os.utime(post_filename, (post[taken_at_key], post[taken_at_key]))
-        except Exception as e:
-            print(e)
+            try:
+                post_filename = generate_filename(title, url, username)
+                urllib.request.urlretrieve(url, post_filename)
+                set_date(post_filename, timestamp)
+            except Exception as e:
+                print(e)
 
 
 if __name__ == '__main__':
