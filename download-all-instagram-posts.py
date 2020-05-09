@@ -86,14 +86,29 @@ def login():
 
 
 def generate_filename(title, url, parent_directory, i=0):
-    """ Returns a filename, with as many characters from `title` as allowed and ending with the extension in `url`. """
+    """
+    Returns a filename, with as many characters from `title` as allowed and ending with the extension in `url`.
+    The filename is guaranteed to not already exist.
+    """
     invalid_chars = '<>:"/\\|?*'
-    post_filename = "".join([c for c in title if c not in invalid_chars]).strip()[:MAX_FILENAME_LENGTH]
-    post_filename = ' '.join(post_filename.split())
+
+    if title.strip() == '':
+        title = "(no caption)"
+    filename = "".join([c for c in title if c not in invalid_chars]).strip()[:MAX_FILENAME_LENGTH]
+    filename = ' '.join(filename.split())
     if i != 0:
-        post_filename = f"{post_filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
+        filename = f"{filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
     extension = url.split('?')[0].split('.')[-1]
-    return os.path.join(parent_directory, f"{post_filename}.{extension}")
+    fully_specified_filename = os.path.join(parent_directory, f"{filename}.{extension}")
+
+    i = 0
+    while os.path.exists(fully_specified_filename):
+        filename = f"{filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
+        fully_specified_filename = os.path.join(parent_directory, f"{filename}.{extension}")
+        i += 1
+
+    print(fully_specified_filename)
+    return fully_specified_filename
 
 
 def set_date(filename, timestamp):
@@ -184,7 +199,7 @@ def main():
                     url = "ERROR"
 
                 try:
-                    post_filename = generate_filename(title, url, username, j+1)
+                    post_filename = generate_filename(title, url, username, j + 1)
                     urllib.request.urlretrieve(url, post_filename)
                     set_date(post_filename, timestamp)
                 except Exception as e:
