@@ -6,4 +6,4 @@ Download all posts from an Instagram account.
 Install dependencies and run the program.
 You will be prompted to enter a username, then all of that user's posts will be downloaded to the `output` directory.
 
-The most recent list of posts will be saved to a `posts.json` file. To re-download those files, enter a `.` instead of a username.
+The list of posts for each user will be cached - you will be prompted to choose to either use the cache or get a fresh list of posts.
