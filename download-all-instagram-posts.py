@@ -14,7 +14,7 @@ from file_io import open_file
 
 LOGIN_FILE_PATH = "login_details.txt"
 SETTINGS_FILE_PATH = "settings.txt"
-POSTS_FILE_PATH = "posts.json"
+CACHE_DIR = "cache"
 OUTPUT_DIR = "output"
 MAX_FILENAME_LENGTH = 190  # not including extension (e.g. ".jpg")
 
@@ -103,7 +103,7 @@ def generate_filename(title, url, parent_directory, i=0):
     extension = url.split('?')[0].split('.')[-1]
     fully_specified_filename = os.path.join(OUTPUT_DIR, parent_directory, f"{filename}.{extension}")
 
-    i = 0
+    i = 1
     while os.path.exists(fully_specified_filename):
         filename = f"{original_filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
         fully_specified_filename = os.path.join(OUTPUT_DIR, parent_directory, f"{filename}.{extension}")
@@ -128,21 +128,29 @@ def set_date(filename, timestamp):
 def main():
     api = login()
 
-    username = input("Download all posts from which user? (Enter a . to load from posts.json file) @")
+    username = input("Download all posts from which user? @")
+    cache_filename = os.path.join(CACHE_DIR, username + ".json")
+    use_cache = False
 
-    if username == '.':
-        with open(POSTS_FILE_PATH, 'r') as fp:
+    if os.path.exists(cache_filename):
+        use_cache_response = input("Do you want to use the cached file (y/n)?: ")  # todo print date cache file updated
+        use_cache = use_cache_response.lower() in ['y', 'yes']
+
+    if use_cache:
+        print("Using cache.")
+        with open(cache_filename, 'r') as fp:
             posts = json.load(fp)
-        username = posts[0]['user']['username']
 
     else:
-        user_info = api.username_info(username)
-        user_id = user_info['user']['pk']
-
+        print("Getting posts...")
         more_available_key = 'more_available'
         next_max_id_key = 'next_max_id'
         items_key = 'items'
+        user_key = 'user'
+        pk_key = 'pk'
 
+        user_info = api.username_info(username)
+        user_id = user_info[user_key][pk_key]
         feed = api.user_feed(user_id)
         posts = feed[items_key]
 
@@ -152,10 +160,10 @@ def main():
             feed = api.user_feed(user_id, max_id=max_id)
             posts.extend(feed[items_key])
 
-        print(f"Number of posts: {len(posts)}")
-
-        with open(POSTS_FILE_PATH, 'w') as fp:
+        with open(cache_filename, 'w') as fp:
             json.dump(posts, fp, indent=2)
+
+    print(f"Number of posts: {len(posts)}")
 
     title_key = 'title'
     caption_key = 'caption'
@@ -167,7 +175,7 @@ def main():
     url_key = 'url'
     carousel_media_key = 'carousel_media'
 
-    print(f"Downloading files...")
+    print(f"Downloading files (every 20th file will be printed as it is downloaded)...")
     if not os.path.exists(os.path.join(OUTPUT_DIR, username)):
         os.mkdir(os.path.join(OUTPUT_DIR, username))
 

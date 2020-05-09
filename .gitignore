@@ -238,4 +238,5 @@ login_details.txt
 settings.txt
 output/*
 !output/.gitkeep
-posts.json
+cache/*
+!cache/.gitkeep
