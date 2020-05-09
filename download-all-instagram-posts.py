@@ -205,7 +205,7 @@ def main():
                     urllib.request.urlretrieve(url, post_filename)
                     set_date(post_filename, timestamp)
                 except Exception as e:
-                    print(e)
+                    print(f"{i}: Error with url for {title}: {e}")
 
         # Get photos/videos for non-carousel
         else:
@@ -223,7 +223,7 @@ def main():
                 urllib.request.urlretrieve(url, post_filename)
                 set_date(post_filename, timestamp)
             except Exception as e:
-                print(e)
+                print(f"{i}: Error with url for {title}: {e}")
 
 
 if __name__ == '__main__':
