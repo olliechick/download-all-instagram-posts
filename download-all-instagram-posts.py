@@ -15,6 +15,7 @@ from file_io import open_file
 LOGIN_FILE_PATH = "login_details.txt"
 SETTINGS_FILE_PATH = "settings.txt"
 POSTS_FILE_PATH = "posts.json"
+OUTPUT_DIR = "output"
 MAX_FILENAME_LENGTH = 190  # not including extension (e.g. ".jpg")
 
 
@@ -99,15 +100,14 @@ def generate_filename(title, url, parent_directory, i=0):
     if i != 0:
         filename = f"{filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
     extension = url.split('?')[0].split('.')[-1]
-    fully_specified_filename = os.path.join(parent_directory, f"{filename}.{extension}")
+    fully_specified_filename = os.path.join(OUTPUT_DIR, parent_directory, f"{filename}.{extension}")
 
     i = 0
     while os.path.exists(fully_specified_filename):
         filename = f"{filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
-        fully_specified_filename = os.path.join(parent_directory, f"{filename}.{extension}")
+        fully_specified_filename = os.path.join(OUTPUT_DIR, parent_directory, f"{filename}.{extension}")
         i += 1
 
-    print(fully_specified_filename)
     return fully_specified_filename
 
 
@@ -132,6 +132,7 @@ def main():
     if username == '.':
         with open(POSTS_FILE_PATH, 'r') as fp:
             posts = json.load(fp)
+        username = posts[0]['user']['username']
 
     else:
         user_info = api.username_info(username)
@@ -166,6 +167,7 @@ def main():
     carousel_media_key = 'carousel_media'
 
     print(f"Downloading files...")
+    os.mkdir(os.path.join(OUTPUT_DIR, username))
     for i, post in enumerate(posts):
         # Get time data
         timestamp = post[taken_at_key]
