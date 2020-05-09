@@ -95,16 +95,17 @@ def generate_filename(title, url, parent_directory, i=0):
 
     if title.strip() == '':
         title = "(no caption)"
-    filename = "".join([c for c in title if c not in invalid_chars]).strip()[:MAX_FILENAME_LENGTH]
-    filename = ' '.join(filename.split())
+    original_filename = "".join([c for c in title if c not in invalid_chars]).strip()[:MAX_FILENAME_LENGTH]
+    original_filename = ' '.join(original_filename.split())
+    filename = original_filename
     if i != 0:
-        filename = f"{filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
+        filename = f"{original_filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
     extension = url.split('?')[0].split('.')[-1]
     fully_specified_filename = os.path.join(OUTPUT_DIR, parent_directory, f"{filename}.{extension}")
 
     i = 0
     while os.path.exists(fully_specified_filename):
-        filename = f"{filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
+        filename = f"{original_filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
         fully_specified_filename = os.path.join(OUTPUT_DIR, parent_directory, f"{filename}.{extension}")
         i += 1
 
@@ -167,7 +168,9 @@ def main():
     carousel_media_key = 'carousel_media'
 
     print(f"Downloading files...")
-    os.mkdir(os.path.join(OUTPUT_DIR, username))
+    if not os.path.exists(os.path.join(OUTPUT_DIR, username)):
+        os.mkdir(os.path.join(OUTPUT_DIR, username))
+
     for i, post in enumerate(posts):
         # Get time data
         timestamp = post[taken_at_key]
