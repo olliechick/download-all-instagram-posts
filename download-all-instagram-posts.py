@@ -16,7 +16,7 @@ LOGIN_FILE_PATH = "login_details.txt"
 SETTINGS_FILE_PATH = "settings.txt"
 CACHE_DIR = "cache"
 OUTPUT_DIR = "output"
-MAX_FILENAME_LENGTH = 190  # not including extension (e.g. ".jpg")
+MAX_FILENAME_LENGTH = 170  # not including extension (e.g. ".jpg")
 
 
 def to_json(python_object):
@@ -128,6 +128,9 @@ def set_date(filename, timestamp):
 def main():
     api = login()
 
+    user_key = 'user'
+    full_name_key = 'full_name'
+
     username = input("Download all posts from which user? @")
     cache_filename = os.path.join(CACHE_DIR, username + ".json")
     use_cache = False
@@ -137,22 +140,24 @@ def main():
         use_cache = use_cache_response.lower() in ['y', 'yes']
 
     if use_cache:
-        print("Using cache.")
         with open(cache_filename, 'r') as fp:
             posts = json.load(fp)
+        full_name = posts[0][user_key][full_name_key]
+        print(f"Using cache for {full_name}.")
 
     else:
-        print("Getting posts...")
         more_available_key = 'more_available'
         next_max_id_key = 'next_max_id'
         items_key = 'items'
-        user_key = 'user'
         pk_key = 'pk'
 
         user_info = api.username_info(username)
         user_id = user_info[user_key][pk_key]
         feed = api.user_feed(user_id)
         posts = feed[items_key]
+
+        full_name = posts[0][user_key][full_name_key]
+        print(f"Getting posts for {full_name}...")
 
         while feed[more_available_key]:
             print(f"Getting more posts ({len(posts)} so far)...")
@@ -229,12 +234,16 @@ def main():
                 print(f"{i}: Error with url for {title}, taken at {time_string}")
                 url = "ERROR"
 
+            post_filename = generate_filename(title, url, username)
             try:
-                post_filename = generate_filename(title, url, username)
                 urllib.request.urlretrieve(url, post_filename)
                 set_date(post_filename, timestamp)
-            except Exception as e:
-                print(f"{i}: Error with url for {title}: {e}")
+            except Exception as e1:
+                try:
+                    urllib.request.urlretrieve(url, post_filename)
+                    set_date(post_filename, timestamp)
+                except Exception as e2:
+                    print(f"{i}: Errors with url for {title}: {e1}, {e2}")
 
 
 if __name__ == '__main__':
