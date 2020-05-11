@@ -125,19 +125,11 @@ def set_date(filename, timestamp):
         os.utime(filename, (timestamp, timestamp))
 
 
-def main():
+def get_post_list(username, use_cache=False, cache_filename=''):
     api = login()
 
     user_key = 'user'
     full_name_key = 'full_name'
-
-    username = input("Download all posts from which user? @")
-    cache_filename = os.path.join(CACHE_DIR, username + ".json")
-    use_cache = False
-
-    if os.path.exists(cache_filename):
-        use_cache_response = input("Do you want to use the cached file (y/n)?: ")  # todo print date cache file updated
-        use_cache = use_cache_response.lower() in ['y', 'yes']
 
     if use_cache:
         with open(cache_filename, 'r') as fp:
@@ -168,8 +160,10 @@ def main():
         with open(cache_filename, 'w') as fp:
             json.dump(posts, fp, indent=2)
 
-    print(f"Number of posts: {len(posts)}")
+    return posts
 
+
+def download_posts(posts, username):
     title_key = 'title'
     caption_key = 'caption'
     text_key = 'text'
@@ -244,6 +238,20 @@ def main():
                     set_date(post_filename, timestamp)
                 except Exception as e2:
                     print(f"{i}: Errors with url for {title}: {e1}, {e2}")
+
+
+def main():
+    username = input("Download all posts from which user? @")
+    cache_filename = os.path.join(CACHE_DIR, username + ".json")
+    use_cache = False
+
+    if os.path.exists(cache_filename):
+        use_cache_response = input("Do you want to use the cached file (y/n)?: ")  # todo print date cache file updated
+        use_cache = use_cache_response.lower() in ['y', 'yes']
+
+    posts = get_post_list(username, use_cache, cache_filename)
+    print(f"Number of posts: {len(posts)}")
+    download_posts(posts, username)
 
 
 if __name__ == '__main__':
