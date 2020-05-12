@@ -134,7 +134,7 @@ def set_date(filename, timestamp):
 
 def get_time_and_date_from_timestamp(timestamp):
     time = datetime.fromtimestamp(timestamp)
-    hour = time.strftime("%H")
+    hour = time.strftime("%I")
     if hour[0] == '0':
         hour = hour[-1]
     time_string = hour + time.strftime(":%M %p").lower()
@@ -268,7 +268,7 @@ def download_posts(posts, username, mode):
                     print(f"{i}: Errors with url for {caption}: {e1}, {e2}")
 
     # Create CSV
-    with open(os.path.join(OUTPUT_DIR, username, f'{username}.csv'), 'w', newline='') as csv_file:
+    with open(os.path.join(OUTPUT_DIR, username, f'{username}.csv'), 'w', newline='', encoding='utf-8') as csv_file:
         writer = csv.writer(csv_file)
         writer.writerows(csv_rows)
 
