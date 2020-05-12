@@ -1,5 +1,5 @@
 #!/usr/bin/env python3
-
+import csv
 import json
 import codecs
 import os
@@ -17,6 +17,11 @@ SETTINGS_FILE_PATH = "settings.txt"
 CACHE_DIR = "cache"
 OUTPUT_DIR = "output"
 MAX_FILENAME_LENGTH = 170  # not including extension (e.g. ".jpg")
+
+# Download modes
+DL_MODE_CAPTION = "caption"  # save with filename as caption and dates as upload date
+DL_MODE_CSV = "csv"  # save with filename as number and details in CSV
+DL_MODES = [DL_MODE_CAPTION, DL_MODE_CSV]
 
 
 def to_json(python_object):
@@ -86,7 +91,7 @@ def login():
     return api
 
 
-def generate_filename(title, url, parent_directory, i=0):
+def generate_filename(title, url, parent_directory, sub_directory, overwrite=False, i=0):
     """
     Returns a filename, with as many characters from `title` as allowed and ending with the extension in `url`.
     The filename is guaranteed to not already exist.
@@ -101,15 +106,17 @@ def generate_filename(title, url, parent_directory, i=0):
     if i != 0:
         filename = f"{original_filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
     extension = url.split('?')[0].split('.')[-1]
-    fully_specified_filename = os.path.join(OUTPUT_DIR, parent_directory, f"{filename}.{extension}")
+    fully_specified_filename = os.path.join(OUTPUT_DIR, parent_directory, sub_directory, f"{filename}.{extension}")
 
-    i = 1
-    while os.path.exists(fully_specified_filename):
-        filename = f"{original_filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
-        fully_specified_filename = os.path.join(OUTPUT_DIR, parent_directory, f"{filename}.{extension}")
-        i += 1
+    if not overwrite:
+        i = 1
+        while os.path.exists(fully_specified_filename):
+            filename = f"{original_filename[:MAX_FILENAME_LENGTH - 4]} ({i})"
+            fully_specified_filename = os.path.join(OUTPUT_DIR, parent_directory, sub_directory,
+                                                    f"{filename}.{extension}")
+            i += 1
 
-    return fully_specified_filename
+    return f"{filename}.{extension}", fully_specified_filename
 
 
 def set_date(filename, timestamp):
@@ -123,6 +130,20 @@ def set_date(filename, timestamp):
         piexif.insert(exif_bytes, filename)
     elif extension == "mp4" or extension == "jpg":
         os.utime(filename, (timestamp, timestamp))
+
+
+def get_time_and_date_from_timestamp(timestamp):
+    time = datetime.fromtimestamp(timestamp)
+    hour = time.strftime("%H")
+    if hour[0] == '0':
+        hour = hour[-1]
+    time_string = hour + time.strftime(":%M %p").lower()
+
+    day_of_month = time.strftime("%d")
+    if day_of_month[0] == '0':
+        day_of_month = day_of_month[-1]
+    date_string = day_of_month + time.strftime(" %b %Y")
+    return time_string, date_string
 
 
 def get_post_list(username, use_cache=False, cache_filename=''):
@@ -163,7 +184,7 @@ def get_post_list(username, use_cache=False, cache_filename=''):
     return posts
 
 
-def download_posts(posts, username):
+def download_posts(posts, username, mode):
     title_key = 'title'
     caption_key = 'caption'
     text_key = 'text'
@@ -177,6 +198,11 @@ def download_posts(posts, username):
     print(f"Downloading files (every 20th file will be printed as it is downloaded)...")
     if not os.path.exists(os.path.join(OUTPUT_DIR, username)):
         os.mkdir(os.path.join(OUTPUT_DIR, username))
+    if not os.path.exists(os.path.join(OUTPUT_DIR, username, mode)):
+        os.mkdir(os.path.join(OUTPUT_DIR, username, mode))
+
+    media_id = 0  # used in DL_MODE_CSV
+    csv_rows = []
 
     for i, post in enumerate(posts):
         # Get time data
@@ -184,60 +210,64 @@ def download_posts(posts, username):
         time_string = datetime.fromtimestamp(timestamp).strftime('%Y_%m_%d %I.%M%p').replace('_', '-')
         time_string = time_string.replace("AM", "am").replace("PM", "pm").replace(" 0", " ")
 
-        # Get title of post
+        # Get caption of post
         if title_key in post:
-            title = post[title_key]
+            caption = post[title_key]
         elif caption_key in post and post[caption_key] is None:
-            title = ''
+            caption = ''
         elif caption_key in post and text_key in post[caption_key]:
-            title = post[caption_key][text_key]
+            caption = post[caption_key][text_key]
         else:
             print(f"{i}: Error with title (taken at {time_string})")
-            title = "ERROR"
+            caption = "ERROR"
 
         if (i + 1) % 20 == 0:
             print(f"Downloading file {i + 1}...")
 
-        # Get photos/videos if in carousel
+        # Get photo(s)/video(s)
         if carousel_media_key in post:
-            for j, item in enumerate(post[carousel_media_key]):
-                if video_versions_key in item and url_key in item[video_versions_key][0]:
-                    url = item[video_versions_key][0][url_key]
-                elif image_versions_key in item and candidates_key in item[image_versions_key] and \
-                        url_key in item[image_versions_key][candidates_key][0]:
-                    url = item[image_versions_key][candidates_key][0][url_key]
-                else:
-                    print(f"{i}: Error with url for {title}, taken at {time_string}")
-                    url = "ERROR"
-
-                try:
-                    post_filename = generate_filename(title, url, username, j + 1)
-                    urllib.request.urlretrieve(url, post_filename)
-                    set_date(post_filename, timestamp)
-                except Exception as e:
-                    print(f"{i}: Error with url for {title}: {e}")
-
-        # Get photos/videos for non-carousel
+            items = enumerate(post[carousel_media_key])
         else:
-            if video_versions_key in post and url_key in post[video_versions_key][0]:
-                url = post[video_versions_key][0][url_key]
-            elif image_versions_key in post and candidates_key in post[image_versions_key] and \
-                    url_key in post[image_versions_key][candidates_key][0]:
-                url = post[image_versions_key][candidates_key][0][url_key]
+            items = [(-1, post)]
+
+        for j, item in items:
+            if video_versions_key in item and url_key in item[video_versions_key][0]:
+                url = item[video_versions_key][0][url_key]
+            elif image_versions_key in item and candidates_key in item[image_versions_key] and \
+                    url_key in item[image_versions_key][candidates_key][0]:
+                url = item[image_versions_key][candidates_key][0][url_key]
             else:
-                print(f"{i}: Error with url for {title}, taken at {time_string}")
+                print(f"{i}: Error with url for {caption}, taken at {time_string}")
                 url = "ERROR"
 
-            post_filename = generate_filename(title, url, username)
+            overwrite = mode == DL_MODE_CSV
+            if mode == DL_MODE_CAPTION:
+                _, post_filename = generate_filename(caption, url, username, mode, overwrite, j + 1)
+            else:
+                filename_without_dirs, post_filename = generate_filename(str(media_id), url, username, mode, overwrite)
+                time, date = get_time_and_date_from_timestamp(timestamp)
+                csv_rows.append([f"{username}/{filename_without_dirs}", caption, time, date])
+                media_id += 1
+
             try:
                 urllib.request.urlretrieve(url, post_filename)
-                set_date(post_filename, timestamp)
+                if mode == DL_MODE_CAPTION:
+                    set_date(post_filename, timestamp)
             except Exception as e1:
                 try:
                     urllib.request.urlretrieve(url, post_filename)
-                    set_date(post_filename, timestamp)
+                    if mode == DL_MODE_CAPTION:
+                        set_date(post_filename, timestamp)
                 except Exception as e2:
-                    print(f"{i}: Errors with url for {title}: {e1}, {e2}")
+                    print(f"{i}: Errors with url for {caption}: {e1}, {e2}")
+
+    # Create CSV
+
+
+    with open(os.path.join(OUTPUT_DIR, username, f'{username}.csv'), 'w', newline='') as csv_file:
+        writer = csv.writer(csv_file)
+        print(csv_rows)
+        writer.writerows(csv_rows)
 
 
 def main():
@@ -245,13 +275,17 @@ def main():
     cache_filename = os.path.join(CACHE_DIR, username + ".json")
     use_cache = False
 
+    mode = input("Do you want to use CSV mode or caption mode? (Enter \"csv\" or \"caption\") ")
+    while mode not in DL_MODES:
+        mode = input("Enter \"csv\" or \"caption\": ")
+
     if os.path.exists(cache_filename):
         use_cache_response = input("Do you want to use the cached file (y/n)?: ")  # todo print date cache file updated
         use_cache = use_cache_response.lower() in ['y', 'yes']
 
     posts = get_post_list(username, use_cache, cache_filename)
     print(f"Number of posts: {len(posts)}")
-    download_posts(posts, username)
+    download_posts(posts, username, mode)
 
 
 if __name__ == '__main__':
