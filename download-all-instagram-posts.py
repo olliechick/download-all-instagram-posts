@@ -220,6 +220,13 @@ def download_posts(posts, username, mode):
         else:
             print(f"{i}: Error with title (taken at {time_string})")
             caption = "ERROR"
+        if mode == DL_MODE_CSV:
+            time, date = get_time_and_date_from_timestamp(timestamp)
+            originally_posted = f"Originally posted by @{username} at {time} on {date}"
+            if caption.strip() == '':
+                caption = originally_posted
+            else:
+                caption = f"{originally_posted}: {caption}"
 
         if (i + 1) % 20 == 0:
             print(f"Downloading file {i + 1}...")
@@ -245,8 +252,7 @@ def download_posts(posts, username, mode):
                 _, post_filename = generate_filename(caption, url, username, mode, overwrite, j + 1)
             else:
                 filename_without_dirs, post_filename = generate_filename(str(media_id), url, username, mode, overwrite)
-                time, date = get_time_and_date_from_timestamp(timestamp)
-                csv_rows.append([f"{username}/{filename_without_dirs}", caption, time, date])
+                csv_rows.append([f"{username}/{filename_without_dirs}", caption])
                 media_id += 1
 
             try:
@@ -262,11 +268,8 @@ def download_posts(posts, username, mode):
                     print(f"{i}: Errors with url for {caption}: {e1}, {e2}")
 
     # Create CSV
-
-
     with open(os.path.join(OUTPUT_DIR, username, f'{username}.csv'), 'w', newline='') as csv_file:
         writer = csv.writer(csv_file)
-        print(csv_rows)
         writer.writerows(csv_rows)
 
 
