@@ -3,7 +3,12 @@ Download all posts from an Instagram account.
 
 ## Run instructions
 
-Install dependencies and run the program.
+Install dependencies and create a file called `login_details.txt` with the following contents:
+```
+username
+password
+```
+Then run the program: `python3 download-all-instagram-posts.py`.
 You will be prompted to enter a username, then select a mode.
 * CSV mode saves the posts with the filename as a number, and creates a CSV `output/<username>.csv` that matches
 each number to the post's caption and the date and time it was posted.
