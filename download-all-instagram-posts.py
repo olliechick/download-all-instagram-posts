@@ -147,8 +147,6 @@ def get_time_and_date_from_timestamp(timestamp):
 
 
 def get_post_list(username, use_cache=False, cache_filename=''):
-    api = login()
-
     user_key = 'user'
     full_name_key = 'full_name'
 
@@ -159,6 +157,8 @@ def get_post_list(username, use_cache=False, cache_filename=''):
         print(f"Using cache for {full_name}.")
 
     else:
+        api = login()
+
         more_available_key = 'more_available'
         next_max_id_key = 'next_max_id'
         items_key = 'items'
